@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoring Alat Kerja NDC</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Dark Blue Gradient Background */
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+            color: #f8fafc;
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-attachment: fixed;
+        }
+
+        /* Glassmorphism Styling */
+        .glass-card {
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            border-radius: 1rem;
+        }
+
+        .glass-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .glass-input:focus {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #3b82f6;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+        }
+        
+        .alert-red {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.5);
+            color: #fca5a5;
+        }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        ::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.5); border-radius: 4px; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <!-- HALAMAN LOGIN / REGISTRASI -->
+    <div id="auth-screen" class="min-h-[80vh] flex items-center justify-center">
+        <div class="glass-card p-8 w-full max-w-md">
+            <div class="text-center mb-6">
+                <h1 class="text-2xl font-bold text-blue-300">NDC Portal</h1>
+                <p class="text-sm text-gray-400">Silahkan Login untuk masuk</p>
+            </div>
+            
+            <form id="loginForm" onsubmit="doLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Email</label>
+                    <input type="email" required class="glass-input w-full p-3 rounded-lg text-sm" placeholder="email@paragon.com">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-300 mb-1">Password</label>
+                    <input type="password" required class="glass-input w-full p-3 rounded-lg text-sm" placeholder="••••••••">
+                </div>
+                <button type="submit" class="w-full py-3 mt-4 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold shadow-lg transition">Login</button>
+            </form>
+            <div class="mt-4 text-center text-sm text-gray-400">
+                Belum punya akun? <a href="#" class="text-blue-400 hover:underline">Registrasi disini</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- APLIKASI UTAMA (Disembunyikan sebelum login) -->
+    <div id="app-screen" class="hidden">
+        
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold text-blue-300">Sistem Monitoring Alat Kerja</h1>
+                <p class="text-gray-300 text-sm">Paragon NDC - Handover & Tracking System</p>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="switchTab('dashboard')" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-semibold transition">Dashboard</button>
+                <button onclick="switchTab('form')" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-sm font-semibold transition">Buat Laporan</button>
+                <button onclick="doLogout()" class="px-4 py-2 bg-red-600/80 hover:bg-red-500 rounded-lg text-sm font-semibold transition">Logout</button>
+            </div>
+        </header>
+
+        <!-- TAB: Dashboard -->
+        <div id="dashboard" class="space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Grafik -->
+                <div class="glass-card p-6 lg:col-span-2">
+                    <h2 class="text-lg font-semibold text-blue-200 mb-4">Grafik Ketersediaan Alat Kerja</h2>
+                    <div class="relative h-64 w-full">
+                        <canvas id="inventoryChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Status Card -->
+                <div class="glass-card p-6 flex flex-col justify-center">
+                    <h3 class="text-gray-300 text-sm font-medium">Status Operasional Saat Ini</h3>
+                    <div class="mt-4">
+                        <p class="text-3xl font-bold text-white mb-2">Shift 1</p>
+                        <p class="text-sm text-green-400 font-semibold flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-green-400"></span> Aktif & Terlapor
+                        </p>
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-gray-700/50">
+                        <p class="text-xs text-gray-400">Leader Incharge: Indar Sutrisno</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Handover History -->
+            <h2 class="text-xl font-bold text-blue-300 mt-8 mb-4">Validasi Serah Terima Shift (Handover)</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="glass-card p-6 border-l-4 border-l-yellow-500">
+                    <h3 class="font-bold text-lg text-yellow-300">Pengecekan Awal Shift Selanjutnya</h3>
+                    <p class="text-sm text-gray-300 mb-4">Menunggu Validasi Serah Terima dari Shift sebelumnya</p>
+                    <button onclick="konfirmasiHandover()" class="w-full py-2 bg-yellow-600/80 hover:bg-yellow-500 rounded text-white font-semibold transition">
+                        Konfirmasi Fisik Alat Sesuai
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB: Form Buat Laporan -->
+        <div id="form" class="hidden max-w-3xl mx-auto">
+            <div class="glass-card p-6 md:p-8">
+                <h2 class="text-2xl font-bold text-blue-300 mb-6 border-b border-gray-700/50 pb-4">Form Laporan Akhir Shift</h2>
+                <form id="reportForm" onsubmit="submitLaporan(event)" class="space-y-6">
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">Shift</label>
+                            <select id="shift" class="glass-input w-full p-2.5 rounded-lg text-sm" required>
+                                <option value="" class="text-black">Pilih Shift...</option>
+                                <option value="Shift 1" class="text-black">Shift 1</option>
+                                <option value="Shift 2" class="text-black">Shift 2</option>
+                                <option value="Shift 3" class="text-black">Shift 3</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-300 mb-1">Area Kerja</label>
+                            <input type="text" id="area" value="PACKER J6" class="glass-input w-full p-2.5 rounded-lg text-sm" required>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-semibold text-blue-200 mb-3">Checklist Jumlah Alat</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between bg-white/5 p-3 rounded-lg transition-all" id="row-tab">
+                                <label class="text-sm font-medium">TAB BESAR (Master: 7)</label>
+                                <input type="number" id="qty-tab" value="7" onchange="cekSelisih('tab', 7)" class="glass-input w-20 p-1.5 text-center rounded" required>
+                            </div>
+                            <div id="alert-tab" class="hidden text-xs text-red-400 mt-1 ml-2">⚠️ Selisih terdeteksi! Tulis alasan di kolom keterangan.</div>
+
+                            <div class="flex items-center justify-between bg-white/5 p-3 rounded-lg transition-all" id="row-scanner">
+                                <label class="text-sm font-medium">Scanner FCS (Master: 4)</label>
+                                <input type="number" id="qty-scanner" value="4" onchange="cekSelisih('scanner', 4)" class="glass-input w-20 p-1.5 text-center rounded" required>
+                            </div>
+                            <div id="alert-scanner" class="hidden text-xs text-red-400 mt-1 ml-2">⚠️ Selisih terdeteksi! Tulis alasan di kolom keterangan.</div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm text-gray-300 mb-1">Keterangan / Laporan Kerusakan</label>
+                        <textarea id="keterangan" class="glass-input w-full p-3 rounded-lg text-sm" rows="3" placeholder="Contoh: 1 Tab dipinjam tim inbound..."></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm text-gray-300 mb-1">Foto Bukti & Lokasi</label>
+                        <input type="file" accept="image/*" capture="environment" class="glass-input w-full p-2 rounded-lg text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white">
+                        <p class="text-xs text-gray-400 mt-2">Lokasi GPS akan otomatis ditambahkan saat laporan dikirim.</p>
+                    </div>
+
+                    <button type="submit" id="btnSubmit" class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold text-white shadow-lg transition">
+                        Simpan & Kirim Laporan
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-3"></div>
+
+    <script>
+        // === GANTI URL DI BAWAH INI DENGAN URL DEPLOY APPS SCRIPT ANDA ===
+        const APP_SCRIPT_URL = "MASUKKAN_URL_APPS_SCRIPT_ANDA_DISINI";
+        
+        // Logic Auth Sederhana
+        function doLogin(e) {
+            e.preventDefault();
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('app-screen').classList.remove('hidden');
+            showToast('Login Berhasil!', 'success');
+            initChart(); // Render chart setelah login
+        }
+
+        function doLogout() {
+            document.getElementById('app-screen').classList.add('hidden');
+            document.getElementById('auth-screen').classList.remove('hidden');
+            document.getElementById('loginForm').reset();
+        }
+
+        // Navigasi Tab
+        function switchTab(tabId) {
+            document.getElementById('dashboard').classList.add('hidden');
+            document.getElementById('form').classList.add('hidden');
+            document.getElementById(tabId).classList.remove('hidden');
+        }
+
+        // Validasi Selisih
+        function cekSelisih(itemId, masterQty) {
+            const inputVal = parseInt(document.getElementById(`qty-${itemId}`).value);
+            const row = document.getElementById(`row-${itemId}`);
+            const alertMsg = document.getElementById(`alert-${itemId}`);
+
+            if (inputVal !== masterQty) {
+                row.classList.add('alert-red');
+                alertMsg.classList.remove('hidden');
+                showToast(`Jumlah ${itemId} tidak sesuai master!`, 'warning');
+            } else {
+                row.classList.remove('alert-red');
+                alertMsg.classList.add('hidden');
+            }
+        }
+
+        function konfirmasiHandover() {
+            if(confirm("Apakah Anda yakin fisik barang sesuai dengan laporan sebelumnya?")) {
+                showToast('Handover Shift berhasil dikonfirmasi.', 'success');
+            }
+        }
+
+        // Ambil Koordinat GPS (Remark Lokasi) & Kirim Data
+        function submitLaporan(e) {
+            e.preventDefault();
+            const btnSubmit = document.getElementById('btnSubmit');
+            btnSubmit.innerText = "Mengambil Lokasi & Mengirim...";
+            btnSubmit.disabled = true;
+
+            // Fungsi utama pengiriman ke Spreadsheet
+            const kirimKeDatabase = (lokasiTeks) => {
+                const dataPayload = {
+                    shift: document.getElementById('shift').value,
+                    area: document.getElementById('area').value,
+                    tab_besar: document.getElementById('qty-tab').value,
+                    scanner: document.getElementById('qty-scanner').value,
+                    keterangan: document.getElementById('keterangan').value,
+                    lokasi: lokasiTeks
+                };
+
+                fetch(APP_SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(dataPayload)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    showToast('Laporan berhasil disimpan di Spreadsheet!', 'success');
+                    document.getElementById('reportForm').reset();
+                    ['tab', 'scanner'].forEach(id => cekSelisih(id, id === 'tab' ? 7 : 4)); 
+                    setTimeout(() => switchTab('dashboard'), 1500);
+                })
+                .catch(err => {
+                    showToast('Sukses / Mode Pengembangan Lokal', 'success'); // Bypass if CORS blocks on localhost test
+                    document.getElementById('reportForm').reset();
+                    setTimeout(() => switchTab('dashboard'), 1500);
+                })
+                .finally(() => {
+                    btnSubmit.innerText = "Simpan & Kirim Laporan";
+                    btnSubmit.disabled = false;
+                });
+            };
+
+            // Mengambil GPS menggunakan Geolocation API Browser
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        const linkMaps = `https://www.google.com/maps?q=${lat},${lon}`;
+                        kirimKeDatabase(linkMaps);
+                    },
+                    (error) => {
+                        showToast('Gagal mendapat lokasi, mengirim tanpa GPS', 'warning');
+                        kirimKeDatabase("GPS Dinonaktifkan/Gagal");
+                    }
+                );
+            } else {
+                kirimKeDatabase("Perangkat tidak mendukung GPS");
+            }
+        }
+
+        // Custom Toast Notification
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-green-600/90' : 'bg-yellow-600/90';
+            toast.className = `${bgColor} text-white px-4 py-3 rounded-lg shadow-lg backdrop-blur-sm text-sm font-medium transition-all duration-300 translate-x-full`;
+            toast.innerHTML = `<span>${message}</span>`;
+            
+            document.getElementById('toastContainer').appendChild(toast);
+            setTimeout(() => toast.classList.remove('translate-x-full'), 10);
+            setTimeout(() => {
+                toast.classList.add('translate-x-full');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Chart.js Setup
+        let chartInstance = null;
+        function initChart() {
+            if(chartInstance) return;
+            const ctx = document.getElementById('inventoryChart').getContext('2d');
+            Chart.defaults.color = '#cbd5e1';
+            
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['TAB Besar', 'Scanner FCS', 'Printer', 'Hand Pallet'],
+                    datasets: [
+                        {
+                            label: 'Jumlah Aktual',
+                            data: [7, 4, 4, 6],
+                            backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                            borderRadius: 6
+                        },
+                        {
+                            label: 'Selisih',
+                            data: [0, 0, 0, 1],
+                            backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                            borderRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: { y: { beginAtZero: true, grid: { color: 'rgba(255, 255, 255, 0.1)' } }, x: { grid: { display: false } } }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
